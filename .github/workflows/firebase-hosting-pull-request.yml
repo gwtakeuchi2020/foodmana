@@ -9,7 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      # # 追記部分
+
+      # 追記部分
       - name: Install Flutter
         run: git clone https://github.com/flutter/flutter.git
       - name: Add path
