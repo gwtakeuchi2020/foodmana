@@ -7,7 +7,7 @@ class ConfigScreen extends StatelessWidget{
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.purple[300],
+          backgroundColor: Colors.pink[200],
           title: const Text(
             'Config',
             style: TextStyle(fontSize: 16),

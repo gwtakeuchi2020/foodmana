@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:bubble/bubble.dart';
 import 'dart:async';
 import '../common/beans.dart';
+import '../common/controller.dart';
+import '../widget/app_bar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class HomeScreen extends StatefulWidget{
   const HomeScreen({Key? key}):super(key: key);
@@ -13,10 +18,43 @@ class HomeScreen extends StatefulWidget{
 }
 
 class _HomeState extends State<HomeScreen>{
-  final int _monthTotal = 1234; //月合計変数
-  late int _dayTotal; //日合計変数
-  late List _list;
-  DateTime _date = DateTime.now();
+  int _monthTotal = 0; //月合計変数
+  int _dayTotal = 0; //日合計変数
+  List _list = [];
+  late DateTime _date;
+
+  // 購入品リスト取得
+  Future<void> _getPurchaseList() async{
+    setState(()=> _list = (Beans.purchaseList == null || Beans.purchaseList!.isEmpty ? [] : Beans.purchaseList!));
+    if(Beans.purchaseList == null || Beans.purchaseList!.isEmpty) {
+      final list = await FirebaseFirestore.instance.collection('purchase').doc('${Beans.userId}').get();
+      if(list.data()!=null && list.data()!.containsKey(DateFormat('yyyy-MM-dd').format(_date))) {
+        setState(()=> _list = list.exists ? json.decode(list.data()![DateFormat('yyyy-MM-dd').format(_date)]) as List : []);
+      }
+    }
+    // 日合計の算出
+    num total = 0;
+    for (var item in _list) {
+      total += item['price'];
+    }
+    setState(() => _dayTotal = total.toInt());
+  }
+
+  // 月合計取得
+  Future<void> _getMonthTotal() async{
+    if(Beans.monthTotal == null || Beans.monthTotal == 0) {
+      final totalList = await FirebaseFirestore.instance.collection('total')
+        .doc('${Beans.userId}')
+        .get();
+      int monthTotal = 0;
+      if(totalList.data() != null && totalList.data()![DateFormat('yyyy-MM').format(_date)] != null) {
+        (totalList.data()![DateFormat('yyyy-MM').format(_date)] as Map).forEach((key, value) => monthTotal += value as int);
+      }
+      setState(() => _monthTotal = monthTotal);
+    }else{
+      setState(() => _monthTotal = Beans.monthTotal ?? 0);
+    }
+  }
 
   // デートピッカー取得メソッド
   Future<void> _selectDate(BuildContext context) async {
@@ -30,14 +68,25 @@ class _HomeState extends State<HomeScreen>{
           return Theme(
             data: ThemeData.light().copyWith(
               colorScheme: const ColorScheme.light().copyWith(
-                primary: Colors.purple[300],
+                primary: Colors.pink[200],
               ),
             ),
             child: child!,
           );
         }
     );
-    if(picked!=null) setState(() => _date = picked); // 変数名+!でnull判定できるっぽい
+    // 対象日付が変更された場合、画面とDBを更新
+    if(picked!=null) {
+      // 日付変更前にDBを更新しておく
+      updatePurchase();
+      updateDayTotal();
+      // 日付変更後の変数変更
+      setState(() => _date = picked);
+      Beans.setPurchaseList([]);
+      Beans.setMonthTotal(0);
+      _getPurchaseList();
+      _getMonthTotal();
+    }
   }
 
   // 購入品リストに要素を追加
@@ -48,6 +97,7 @@ class _HomeState extends State<HomeScreen>{
     }
     Navigator.pop(context);
   }
+
   // 購入品リストの要素を削除
   void _removeList(removeItem) {
     setState(() => _list.remove(removeItem));
@@ -57,7 +107,57 @@ class _HomeState extends State<HomeScreen>{
   // 合計金額の更新
   void _updateTotal(int? newPrice, bool direction) {
     setState(() => direction ? _dayTotal += newPrice! : _dayTotal -= newPrice!);
+    setState(() => direction ? _monthTotal += newPrice! : _monthTotal -= newPrice!);
   }
+
+  // 購入品の一括更新
+  Future<void> updatePurchase() async {
+    final doc = await FirebaseFirestore.instance
+      .collection('purchase')
+      .doc('${Beans.userId}')
+      .get();
+    if(doc.exists) {
+      await FirebaseFirestore.instance
+      .collection('purchase')
+      .doc('${Beans.userId}').update({
+        DateFormat('yyyy-MM-dd').format(_date) : json.encode(_list)
+      });
+    }else{
+      await FirebaseFirestore.instance
+      .collection('purchase')
+      .doc('${Beans.userId}').set({
+        DateFormat('yyyy-MM-dd').format(_date) : json.encode(_list)
+      });
+    }
+  }
+
+  // 日合計の一括登録
+  Future<void> updateDayTotal() async {
+    // 日合計の更新
+    final total = await FirebaseFirestore.instance
+      .collection('total')
+      .doc('${Beans.userId}')
+      .get();
+    if(total.exists) {
+      await FirebaseFirestore.instance
+      .collection('total')
+      .doc('${Beans.userId}').update({
+        DateFormat('yyyy-MM').format(_date) : {
+          DateFormat('yyyy-MM-dd').format(_date) : _dayTotal
+        }
+      });
+    }else{
+      await FirebaseFirestore.instance
+      .collection('total')
+      .doc('${Beans.userId}')
+      .set({
+        DateFormat('yyyy-MM').format(_date): {
+          DateFormat('yyyy-MM-dd').format(_date) : _dayTotal
+        }
+      }, SetOptions(merge: true)); // マージをすることで値の追加となる
+    }
+  }
+
   // ポップアップ表示メソッド
   void _popUp() {
     String? addItem;
@@ -106,7 +206,13 @@ class _HomeState extends State<HomeScreen>{
               shape: const StadiumBorder(),
             ),
             child: const Text('追 加', style: TextStyle(color: Colors.white, fontSize: 20)),
-            onPressed: () =>_addList(addItem:addItem, addPrice:addPrice)
+            onPressed: () async {
+                // QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance.collection('users').get();
+                // for (final snapshot in snapshot.docs) {
+                //     final data = snapshot.data(); // `data()`で中身を取り出す
+                // }
+                _addList(addItem:addItem, addPrice:addPrice);
+              },
           )
         ],
       )
@@ -117,28 +223,21 @@ class _HomeState extends State<HomeScreen>{
   @override
   void initState() {
     super.initState();
-    // 購入リストを取得
-    setState(()=> _list = (Beans.purchaseList ?? []));
-
-    // 日合計の算出
-    num total = 0;
-    for (var item in _list) {
-      total += item['price'];
-    }setState(() => _dayTotal = total.toInt());
+    // ナビゲーションガード
+    Controller.navigationGuard(context);
+    // 対象日付
+    _date = Beans.targetDate != null ? Beans.targetDate! : DateTime.now();
+    // 購入品リスト取得
+    _getPurchaseList();
+    // 月合計取得
+    _getMonthTotal();
   }
 
   // ウィジェット記述 
   @override 
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.purple[300],
-          title: const Text(
-            'Home',
-            style: TextStyle(fontSize: 16),
-          ),
-          automaticallyImplyLeading: false,
-        ),
+        appBar: AppBarWiget.appbar(context, 'Home'),
         body: Container(
           padding: const EdgeInsets.all(10.0),
           child: Column(
@@ -283,9 +382,18 @@ class _HomeState extends State<HomeScreen>{
         )
       );
   }
+
+  // Home画面破棄時処理
   @override
-  void dispose() {
-    Beans.setPurchaseList(_list);
+  Future<void> dispose() async{
     super.dispose();
+    // 画面側の共通変数を更新
+    Beans.setPurchaseList(_list);
+    Beans.setTargetDate(_date);
+    Beans.setMonthTotal(_monthTotal);
+    // 購入品の一括登録
+    updatePurchase();
+    // 日合計の一括登録
+    updateDayTotal();
   }
 }

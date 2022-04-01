@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:bubble/bubble.dart';
+import '../widget/app_bar.dart';
 
 class GraphScreen extends StatefulWidget{
   const GraphScreen({Key? key}):super(key: key);
@@ -75,14 +76,7 @@ class _GraphState extends State<GraphScreen>{
   @override 
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.purple[300],
-          title: const Text(
-            'Chart',
-            style: TextStyle(fontSize: 16),
-          ),
-          automaticallyImplyLeading: false,
-        ),
+        appBar: AppBarWiget.appbar(context, 'Chart'),
         body: Center(
             child: Container(
               padding: const EdgeInsets.all(10.0),
@@ -108,10 +102,10 @@ class _GraphState extends State<GraphScreen>{
                         value: _currentDropDown,
                         icon: const Icon(Icons.arrow_drop_down),
                         elevation: 16,
-                        style: const TextStyle(color: Colors.deepPurple),
+                        style: const TextStyle(color: Colors.pink),
                         underline: Container(
                           height: 2,
-                          color: Colors.deepPurpleAccent,
+                          color: Colors.pink,
                         ),
                         onChanged: (String? newValue) {
                           setState(() {
