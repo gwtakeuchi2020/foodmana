@@ -47,8 +47,8 @@ class _HomeState extends State<HomeScreen>{
         .doc('${Beans.userId}')
         .get();
       int monthTotal = 0;
-      if(totalList.data() != null && totalList.data()![DateFormat('yyyy-MM').format(_date)] != null) {
-        (totalList.data()![DateFormat('yyyy-MM').format(_date)] as Map).forEach((key, value) => monthTotal += value as int);
+      if(totalList.data() != null && (totalList.data() as Map).containsKey(DateFormat('yyyy-MM').format(_date) + '_monthTotal')) {
+        monthTotal = totalList.data()![DateFormat('yyyy-MM').format(_date) + '_monthTotal'] as int;
       }
       setState(() => _monthTotal = monthTotal);
     }else{
@@ -56,7 +56,7 @@ class _HomeState extends State<HomeScreen>{
     }
   }
 
-  // デートピッカー取得メソッド
+  // デートピッカー取得メソッド(& 値更新)
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
         context: context,
@@ -77,13 +77,15 @@ class _HomeState extends State<HomeScreen>{
     );
     // 対象日付が変更された場合、画面とDBを更新
     if(picked!=null) {
-      // 日付変更前にDBを更新しておく
-      updatePurchase();
-      updateDayTotal();
+      // 日付変更前にDBを更新しておく(後の処理でDBから値を取得するため、同期敵にする必要あり await)
+      await updatePurchase();
+      await updateDayTotal();
       // 日付変更後の変数変更
       setState(() => _date = picked);
+      Beans.setTargetDate(_date);
       Beans.setPurchaseList([]);
       Beans.setMonthTotal(0);
+      // 更新後値取得
       _getPurchaseList();
       _getMonthTotal();
     }
@@ -138,22 +140,22 @@ class _HomeState extends State<HomeScreen>{
       .collection('total')
       .doc('${Beans.userId}')
       .get();
-    if(total.exists) {
+    if(total.exists && (total.data() as Map).containsKey(DateFormat('yyyy-MM').format(_date))) {
+      Map result = json.decode(total.data()![DateFormat('yyyy-MM').format(_date)]) as Map;
+      result[DateFormat('yyyy-MM-dd').format(_date)] = _dayTotal;
       await FirebaseFirestore.instance
       .collection('total')
       .doc('${Beans.userId}').update({
-        DateFormat('yyyy-MM').format(_date) : {
-          DateFormat('yyyy-MM-dd').format(_date) : _dayTotal
-        }
+        DateFormat('yyyy-MM').format(_date) + '_monthTotal': _monthTotal,
+        DateFormat('yyyy-MM').format(_date) : json.encode(result)
       });
     }else{
       await FirebaseFirestore.instance
       .collection('total')
       .doc('${Beans.userId}')
       .set({
-        DateFormat('yyyy-MM').format(_date): {
-          DateFormat('yyyy-MM-dd').format(_date) : _dayTotal
-        }
+        DateFormat('yyyy-MM').format(_date) + '_monthTotal': _monthTotal,
+        DateFormat('yyyy-MM').format(_date): json.encode({DateFormat('yyyy-MM-dd').format(_date) : _dayTotal})
       }, SetOptions(merge: true)); // マージをすることで値の追加となる
     }
   }
@@ -207,10 +209,6 @@ class _HomeState extends State<HomeScreen>{
             ),
             child: const Text('追 加', style: TextStyle(color: Colors.white, fontSize: 20)),
             onPressed: () async {
-                // QuerySnapshot<Map<String, dynamic>> snapshot = await FirebaseFirestore.instance.collection('users').get();
-                // for (final snapshot in snapshot.docs) {
-                //     final data = snapshot.data(); // `data()`で中身を取り出す
-                // }
                 _addList(addItem:addItem, addPrice:addPrice);
               },
           )

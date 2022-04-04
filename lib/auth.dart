@@ -110,101 +110,92 @@ class _AuthState extends State<Auth>{
         ),
         automaticallyImplyLeading: false,
       ),
-      body:Container(
-        // decoration: const BoxDecoration(
-        //   // 背景画像
-        //   image: DecorationImage(
-        //     image: AssetImage('images/sample.jpeg'),
-        //     fit: BoxFit.scaleDown,
-        //   ),
-        // ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Card(
-                margin: const EdgeInsets.all(20),
-                elevation: 3,
-                child: Column(
-                  children: [
-                    Text('SignIn', style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold, color: Colors.pink[200]), textAlign: TextAlign.center,),
-                    Card(
-                      color: Colors.red[400],
-                      child: Text(infoText, style: const TextStyle(color: Colors.white))
-                    ),
-                    Container(
-                      padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            decoration: const InputDecoration(labelText: "メールアドレス"),
-                            onChanged: (String value) {
+      body:Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Card(
+              margin: const EdgeInsets.all(20),
+              elevation: 3,
+              child: Column(
+                children: [
+                  Text('SignIn', style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold, color: Colors.pink[200]), textAlign: TextAlign.center,),
+                  Card(
+                    color: Colors.red[400],
+                    child: Text(infoText, style: const TextStyle(color: Colors.white))
+                  ),
+                  Container(
+                    padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: "メールアドレス"),
+                          onChanged: (String value) {
+                            setState(() {
+                              loginUserEmail = value;
+                            });
+                          },
+                        ),
+                        TextFormField(
+                          decoration: const InputDecoration(labelText: "パスワード"),
+                          obscureText: true,
+                          onChanged: (String value) {
+                            setState(() {
+                              loginUserPassword = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          child: const Text("ログイン"),
+                          onPressed: () async {
+                            try {
+                              // メール/パスワードでログイン
+                              final FirebaseAuth auth = FirebaseAuth.instance;
+                              final UserCredential result =
+                                  await auth.signInWithEmailAndPassword(
+                                email: loginUserEmail,
+                                password: loginUserPassword,
+                              );
+                              // ログインに成功した場合、ログイン情報を格納
+                              final User user = result.user!;
+                              Beans.setUserId(user.email.toString());
+                              // ホーム画面へ遷移
+                              Navigator.pushNamed(context, '/navi');
+                            } catch (e) {
+                              // ログインに失敗した場合
                               setState(() {
-                                loginUserEmail = value;
+                                infoText = e.toString(); //.authValidate(e, method);
                               });
-                            },
-                          ),
-                          TextFormField(
-                            decoration: const InputDecoration(labelText: "パスワード"),
-                            obscureText: true,
-                            onChanged: (String value) {
-                              setState(() {
-                                loginUserPassword = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            child: const Text("ログイン"),
-                            onPressed: () async {
-                              try {
-                                // メール/パスワードでログイン
-                                final FirebaseAuth auth = FirebaseAuth.instance;
-                                final UserCredential result =
-                                    await auth.signInWithEmailAndPassword(
-                                  email: loginUserEmail,
-                                  password: loginUserPassword,
-                                );
-                                // ログインに成功した場合、ログイン情報を格納
-                                final User user = result.user!;
-                                Beans.setUserId(user.email.toString());
-                                // ホーム画面へ遷移
-                                Navigator.pushNamed(context, '/navi');
-                              } catch (e) {
-                                // ログインに失敗した場合
-                                setState(() {
-                                  infoText = e.toString(); //.authValidate(e, method);
-                                });
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          RichText(
-                            text: TextSpan(
-                              children: [
-                                const TextSpan(
-                                  text: '新規登録は',
-                                  style: TextStyle(color: Colors.black)),
-                                TextSpan(
-                                  text: 'こちら',
-                                  style: const TextStyle(color: Colors.blue),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () {
-                                      _popUp();
-                                    }
-                                ),
-                              ]
-                            )
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        RichText(
+                          text: TextSpan(
+                            children: [
+                              const TextSpan(
+                                text: '新規登録は',
+                                style: TextStyle(color: Colors.black)),
+                              TextSpan(
+                                text: 'こちら',
+                                style: const TextStyle(color: Colors.blue),
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    _popUp();
+                                  }
+                              ),
+                            ]
                           )
-                        ],
-                      ),
+                        )
+                      ],
                     ),
-                  ],
-                ),
-              )
-            ],
-          ),
-        )
+                  ),
+                ],
+              ),
+            )
+          ],
+        ),
       )
     );
   }

@@ -1,7 +1,13 @@
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:bubble/bubble.dart';
 import '../widget/app_bar.dart';
+import '../common/beans.dart';
+import '../common/controller.dart';
 
 class GraphScreen extends StatefulWidget{
   const GraphScreen({Key? key}):super(key: key);
@@ -13,67 +19,58 @@ class GraphScreen extends StatefulWidget{
 class _GraphState extends State<GraphScreen>{
   late TooltipBehavior _tooltipBehavior;
   late String _currentDropDown;
-  late DateTime _currentDate; // 現在年月日
+  List<ChartData> _graphData = [];
+  late DateTime _currentDate;
 
   // グラフデータを取得
-  List<ChartData> _createChartData() {
-    if(_currentDropDown == '月') {
-      return [
-        ChartData('Jan', 2035),
-        ChartData('Feb', 4028),
-        ChartData('Mar', 6034),
-        ChartData('Apr', 7032),
-        ChartData('May', 4040),
-        ChartData('Jun', 5040),
-        ChartData('Jul', 6020),
-        ChartData('Aug', 8015),
-        ChartData('Sep', 1017),
-        ChartData('Oct', 2030),
-        ChartData('Nov', 3038),
-        ChartData('Dec', 4040),
-      ];
+  Future<void> _createChartData() async {
+    final total = await FirebaseFirestore.instance.collection('total').doc(Beans.userId).get();
+    List<ChartData> res = [];
+    if(total.data() != null) {
+      // フィルター：日
+      if(_currentDropDown == '日') {
+        if((total.data() as Map).containsKey(DateFormat('yyyy-MM').format(_currentDate))) {
+          (json.decode(total.data()![DateFormat('yyyy-MM').format(_currentDate)]) as Map).forEach((key, value) => res.add(ChartData(key as String, value as double)));
+        }
+      }
+      // フィルター：月
+      if(_currentDropDown == '月') {
+        (total.data() as Map).forEach((key, value) {
+          if((key as String).contains(DateFormat('yyyy').format(_currentDate)) && key.contains('_monthTotal')) {
+            res.add(ChartData(key.substring(0,7), value));
+          }
+        });
+      }
+      // フィルター：年
+      if(_currentDropDown == '年') {
+        Map<String, double> yearTotal = {};
+        (total.data() as Map).forEach((key, value) {
+          if((key as String).contains('_monthTotal')) {
+            yearTotal[key.substring(0,4)] = 
+              yearTotal.containsKey(key.substring(0,4)) ? yearTotal[key.substring(0,4)]! + value : value as double;
+          }
+        });
+        yearTotal.forEach((key, value) => res.add(ChartData(key, value)));
+      }
     }
-    if(_currentDropDown == '日') {
-      return [
-        ChartData('1日', 1035),
-        ChartData('2日', 1028),
-        ChartData('3日', 1034),
-        ChartData('4日', 1032),
-        ChartData('5日', 1040),
-        ChartData('6日', null),
-        ChartData('7日', 1020),
-        ChartData('8日', 1015),
-        ChartData('9日', 1017),
-        ChartData('10日', 1030),
-        ChartData('11日', 1038),
-        ChartData('12日', 1040),
-      ];
-    }
-    return [
-      ChartData('2012', 3035),
-      ChartData('2013', 5028),
-      ChartData('2014', 6034),
-      ChartData('2015', 3032),
-      ChartData('2016', 3040),
-      ChartData('2017', 4040),
-      ChartData('2018', 5020),
-      ChartData('2019', 6015),
-      ChartData('2020', 2017),
-      ChartData('2021', 3030),
-      ChartData('2022', 6038),
-    ];
+    setState(() => _graphData = res);
   }
 
   @override
   void initState(){
-    _currentDropDown = '日';
-    _tooltipBehavior =  TooltipBehavior(enable: true, header: '合計', format: 'point.x : point.y円');
-    _currentDate = DateTime.now();
     super.initState(); 
+    // ナビゲーションガード
+    Controller.navigationGuard(context);
+
+    _currentDropDown = Beans.chartFilter  ?? '日';
+    _currentDate = Beans.currentDate ?? DateTime.now();
+    _tooltipBehavior =  TooltipBehavior(enable: true, header: '合計', format: 'point.x : point.y円');
+    // チャートの表示
+    _createChartData();
   }
   
   // ウィジェット生成
-  @override 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBarWiget.appbar(context, 'Chart'),
@@ -108,9 +105,8 @@ class _GraphState extends State<GraphScreen>{
                           color: Colors.pink,
                         ),
                         onChanged: (String? newValue) {
-                          setState(() {
-                            _currentDropDown = newValue!;
-                          });
+                          setState(() => _currentDropDown = newValue!);
+                          _createChartData();
                         },
                         items: <String>['年','月','日']
                             .map<DropdownMenuItem<String>>((String value) {
@@ -129,7 +125,7 @@ class _GraphState extends State<GraphScreen>{
                     series: <ChartSeries>[
                       LineSeries(
                         color: Colors.orange,
-                        dataSource: _createChartData(), 
+                        dataSource: _graphData, 
                         xValueMapper: (data, _) => data.x,
                         yValueMapper: (data, _) => data.y,
                         markerSettings: const MarkerSettings(isVisible: true)
